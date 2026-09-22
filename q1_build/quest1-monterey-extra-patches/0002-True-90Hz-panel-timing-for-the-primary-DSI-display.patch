@@ -1,0 +1,57 @@
+From 1234c0873c2920819c189749bd1cbb713ebe9857 Mon Sep 17 00:00:00 2001
+From: TheCez <achodankar28@gmail.com>
+Date: Tue, 22 Sep 2026 22:39:41 +0200
+Subject: [PATCH 2/2] True 90Hz panel timing for the primary DSI display
+
+Retimed qcom,mdss-dsi-max-refresh-rate/panel-framerate/panel-timings/
+t-clk-post/t-clk-pre for the display's actual 90Hz target, derived by
+diffing a third-party 90Hz patch's kernel DTB against this device's
+genuine 72Hz baseline (panel timing values are absolute per-target-rate
+electrical parameters, not deltas, so they transfer directly). This one
+source file covers all 14 board revisions built from this tree, which
+all share the same stock panel timings.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../oculus/dsi-panel-sdc-lightman-video.dtsi    | 17 ++++++++++++-----
+ 1 file changed, 12 insertions(+), 5 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/oculus/dsi-panel-sdc-lightman-video.dtsi b/arch/arm64/boot/dts/oculus/dsi-panel-sdc-lightman-video.dtsi
+index 653cb10e..1a78945a 100644
+--- a/arch/arm64/boot/dts/oculus/dsi-panel-sdc-lightman-video.dtsi
++++ b/arch/arm64/boot/dts/oculus/dsi-panel-sdc-lightman-video.dtsi
+@@ -28,8 +28,15 @@
+ 		qcom,mdss-dsi-pan-enable-dynamic-fps;
+ 		qcom,mdss-dsi-pan-fps-update = "dfps_immediate_porch_mode_hfp";
+ 		qcom,mdss-dsi-min-refresh-rate = <60>;
+-		qcom,mdss-dsi-max-refresh-rate = <72>;
+-		qcom,mdss-dsi-panel-framerate = <72>;
++		// ponytail: 90Hz override -- absolute retimed values for this exact
++		// panel at 90Hz (not a delta from 72Hz), verified by extracting and
++		// diffing a real third-party 90Hz-patched boot.img's DTB against
++		// genuine stock via magiskboot+dtc, see recovery_debug/90hz_display/
++		// dtb_diff_stock_vs_90hz.diff. Stock was: max-refresh-rate/
++		// panel-framerate=72, panel-timings=[00 17 06 05 21 20 06 06 04 03
++		// 04 00], t-clk-post=0xc, t-clk-pre=0x26.
++		qcom,mdss-dsi-max-refresh-rate = <90>;
++		qcom,mdss-dsi-panel-framerate = <90>;
+ 		qcom,mdss-dsi-h-front-porch = <250>;
+ 		qcom,mdss-dsi-h-back-porch = <110>;
+ 		qcom,mdss-dsi-h-pulse-width = <70>;
+@@ -62,10 +69,10 @@
+ 		qcom,mdss-dsi-lane-2-state;
+ 		qcom,mdss-dsi-lane-3-state;
+ 		qcom,mdss-dsi-panel-timings = [
+-			00 17 06 05 21 20 06 06 04 03 04 00
++			00 1d 08 07 2a 28 08 08 05 04 05 00
+ 		];
+-		qcom,mdss-dsi-t-clk-post = <0xc>;
+-		qcom,mdss-dsi-t-clk-pre = <0x26>;
++		qcom,mdss-dsi-t-clk-post = <0xf>;
++		qcom,mdss-dsi-t-clk-pre = <0x30>;
+ 		qcom,mdss-dsi-dma-trigger = "trigger_sw";
+ 		qcom,mdss-dsi-mdp-trigger = "none";
+ 
+-- 
+2.43.0
+

@@ -1,0 +1,76 @@
+From a2a9e1025945941dfda858c09a8b2a8feb17fb2b Mon Sep 17 00:00:00 2001
+From: TheCez <achodankar28@gmail.com>
+Date: Tue, 22 Sep 2026 22:39:41 +0200
+Subject: [PATCH 1/2] Dual-boot recovery: skip_initramfs ->
+ androidboot.force_normal_boot
+
+Standard Android-10 recovery-as-boot handoff (same technique as Moto G7,
+Essential, Razer, Pixel 2): init/initramfs.c stops discarding the
+initramfs when skip_initramfs is absent, and fs/proc/cmdline.c
+translates skip_initramfs's presence into androidboot.force_normal_boot=1
+on /proc/cmdline. Replaces the old BCB-based recovery detection this
+device shipped with. Lets one boot.img boot stock Android normally and
+OrangeFox recovery on a button combo, with no separate recovery
+partition and no live BCB/hardware-key polling.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ fs/proc/cmdline.c | 11 ++++++++++-
+ init/initramfs.c  | 13 ++++++++++++-
+ 2 files changed, 22 insertions(+), 2 deletions(-)
+
+diff --git a/fs/proc/cmdline.c b/fs/proc/cmdline.c
+index cbd82dff..30d35ca0 100644
+--- a/fs/proc/cmdline.c
++++ b/fs/proc/cmdline.c
+@@ -3,9 +3,18 @@
+ #include <linux/proc_fs.h>
+ #include <linux/seq_file.h>
+ 
++/* ponytail: Fix B of the recovery-as-boot compat bridge -- ABL passes the
++ * legacy skip_initramfs token on a normal boot; init/initramfs.c no longer
++ * acts on it (Fix A), but userspace first-stage init still needs a signal
++ * to tell normal boot from native recovery. Translate it here at read
++ * time. Matches Moto G7/sdm632 commit 44049b8ca8 "proc: Replace
++ * skip_initramfs to androidboot.force_normal_boot". */
++extern bool skip_initramfs_present;
++
+ static int cmdline_proc_show(struct seq_file *m, void *v)
+ {
+-	seq_printf(m, "%s\n", saved_command_line);
++	seq_printf(m, "%s%s\n", saved_command_line,
++		   skip_initramfs_present ? " androidboot.force_normal_boot=1" : "");
+ 	return 0;
+ }
+ 
+diff --git a/init/initramfs.c b/init/initramfs.c
+index 52059169..a24afc41 100644
+--- a/init/initramfs.c
++++ b/init/initramfs.c
+@@ -608,11 +608,22 @@ static void __init clean_rootfs(void)
+ 
+ static int __initdata do_skip_initramfs;
+ 
++/* ponytail: NOT __initdata -- fs/proc/cmdline.c reads this after init
++ * sections are freed, to translate skip_initramfs's presence into
++ * androidboot.force_normal_boot=1 for userspace (system/core/init/util.cpp
++ * IsRecoveryMode() reads that flag as the primary normal/recovery signal).
++ * See recovery_debug/orangefox_port/results/recovery_as_boot_compat_fix.md. */
++bool skip_initramfs_present;
++
+ static int __init skip_initramfs_param(char *str)
+ {
+ 	if (*str)
+ 		return 0;
+-	do_skip_initramfs = 1;
++	/* ponytail: intentionally not setting do_skip_initramfs -- see
++	 * recovery_debug/final_bringup/analysis/patch_rationale.md. Parser
++	 * still consumes the ABL-appended bare token; populate_rootfs()
++	 * keeps its default (unpack the boot-image ramdisk) behavior. */
++	skip_initramfs_present = true;
+ 	return 1;
+ }
+ __setup("skip_initramfs", skip_initramfs_param);
+-- 
+2.43.0
+
